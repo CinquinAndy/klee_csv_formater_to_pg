@@ -27,11 +27,11 @@ cd ../
 #### exemple for the .env
 
 ````
-HOST: localhost
-USER: user
-DATABASE: db
-PASSWORD: password
-PORT: 5432
+HOST= localhost
+USER= postgres
+DATABASE= testdb
+PASSWORD= 123
+PORT= 5432
 ````
 
 ------------------------------------------------------
