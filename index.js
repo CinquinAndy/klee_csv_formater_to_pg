@@ -46,7 +46,8 @@ listCSVFiles = fs.readdirSync("./csv");
 for (const listCSVFilesKey of listCSVFiles) {
     objectListCSVFiles.push({
         name: listCSVFilesKey.match(tableNameRegex)[1],
-        completeName: listCSVFilesKey
+        completeName: listCSVFilesKey,
+        unit: ""
     })
 }
 
@@ -57,11 +58,13 @@ for (const objectListCSVFile of objectListCSVFiles) {
     let csvStream = fastcsv
         .parse()
         .on("data", function (data) {
+            // returns either true or false
             if (!!data.length) {
                 for (const dataKey in data) {
                     // we don't make change line with time and hours, only others
                     // we just need to keep numbers, and don't change the first line
                     if (dataKey != 0 && data[0] !== "Time") {
+                        objectListCSVFile.unit = data[dataKey].replace(data[dataKey].match(matchNumberRegex)[0], "").trim();
                         data[dataKey] = data[dataKey].match(matchNumberRegex)[0];
                     }
                 }
@@ -72,14 +75,17 @@ for (const objectListCSVFile of objectListCSVFiles) {
                 // create the query to create the table
                 objectListCSVFile.name = cleanString(objectListCSVFile.name);
 
-                var queryToCreateTable = `CREATE TABLE IF NOT EXISTS "${objectListCSVFile.name}"(time TIMESTAMP NOT NULL,`;
+                var queryToCreateTable = `CREATE TABLE IF NOT EXISTS "klee_${objectListCSVFile.name}"
+                                          (
+                                              time  TIMESTAMP NOT NULL,
+                                              unite varchar(50),`;
                 for (const data in csvData[0]) {
                     if (data != 0) {
                         // replace spaces & add all columns
                         queryToCreateTable += `${cleanString(csvData[0][data])} DOUBLE PRECISION NOT NULL,`
                     }
                 }
-                queryToCreateTable += ` PRIMARY KEY (time) )`;
+                queryToCreateTable += ` PRIMARY KEY (time));`;
 
                 // ---------------------------------- Part to create insert query -----------------------------------
                 var allInsert = [];
@@ -89,7 +95,7 @@ for (const objectListCSVFile of objectListCSVFiles) {
                 for (const csvDataKey in csvData) {
                     if (csvDataKey == 0) {
                         // we start the query, add the time [ we will is it as primary key ]
-                        baseQueryToInsert = `INSERT INTO "${objectListCSVFile.name}"(time`
+                        baseQueryToInsert = `INSERT INTO "klee_${objectListCSVFile.name}"(time, unite`
                         for (const data in csvData[csvDataKey]) {
                             if (data != 0) {
                                 baseQueryToInsert += `,${cleanString(csvData[csvDataKey][data])}`;
@@ -101,9 +107,15 @@ for (const objectListCSVFile of objectListCSVFiles) {
                         queryToInsert = baseQueryToInsert;
                         for (const csvDataKeyKey in csvData[csvDataKey]) {
                             // if it's the first value, we don't add a ','
-                            queryToInsert += `${csvDataKeyKey == 0 ? "" : "','"}${csvData[csvDataKey][csvDataKeyKey]}`
+                            csvData[csvDataKey][csvDataKeyKey] = !!csvData[csvDataKey][csvDataKeyKey] ? csvData[csvDataKey][csvDataKeyKey] : 0 ;
+                            if (!(csvDataKeyKey == 1)) {
+                                queryToInsert += `${csvDataKeyKey == 0 ? "" : ","}${csvData[csvDataKey][csvDataKeyKey]}`
+                            } else {
+                                queryToInsert += `','${objectListCSVFile.unit}'`
+                                queryToInsert += `${csvDataKeyKey == 0 ? "" : ","}${csvData[csvDataKey][csvDataKeyKey]}`
+                            }
                         }
-                        queryToInsert += "') ON CONFLICT DO NOTHING;";
+                        queryToInsert += ") ON CONFLICT DO NOTHING;";
                         // finally we push the array query's
                         allInsert.push(queryToInsert);
                     }
